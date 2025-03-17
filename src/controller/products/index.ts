@@ -1,7 +1,8 @@
+import { z } from "zod";
 import { db } from "@/db";
 import { products } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
-import { ID, Float } from "@getcronit/pylon";
+import { Float, ID } from "@getcronit/pylon";
 
 type Product = {
   id: ID;
@@ -13,6 +14,19 @@ type Product = {
 
 type CreateProductInput = Omit<Product, "id">;
 type UpdateProductInput = Partial<Omit<Product, "id">> & { id: ID };
+
+// Validation Schema for Product Creation
+const createProductSchema = z.object({
+  name: z.string().min(1, "Name cannot be empty"),
+  description: z.string().min(1, "Description cannot be empty"),
+  price: z.number().min(0, "Price must be greater than or equal to 0"),
+  isActive: z.boolean(),
+});
+
+// Validation Schema for Product Update
+const updateProductSchema = createProductSchema.partial().extend({
+  id: z.number().positive("Invalid product ID"),
+});
 
 export const productGraphql = {
   Query: {
@@ -66,27 +80,29 @@ export const productGraphql = {
   },
   Mutation: {
     createProduct: async (input: CreateProductInput) => {
+      const parsedInput = createProductSchema.safeParse(input);
+      if (!parsedInput.success) {
+        throw new Error(
+          parsedInput.error.errors.map((e) => e.message).join(", ")
+        );
+      }
+
       const newProduct = await db
         .insert(products)
-        .values({
-          name: input.name,
-          description: input.description,
-          price: input.price,
-          isActive: input.isActive,
-        })
+        .values(parsedInput.data)
         .returning();
-
       return newProduct[0];
     },
     updateProduct: async (input: UpdateProductInput) => {
+      const parsedInput = updateProductSchema.safeParse(input);
+      if (!parsedInput.success) {
+        throw new Error(
+          parsedInput.error.errors.map((e) => e.message).join(", ")
+        );
+      }
       const updatedProduct = await db
         .update(products)
-        .set({
-          name: input.name,
-          description: input.description,
-          price: input.price,
-          isActive: input.isActive,
-        })
+        .set(parsedInput.data)
         .where(eq(products.id, Number(input.id)))
         .returning();
 
