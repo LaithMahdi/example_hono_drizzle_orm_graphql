@@ -4,13 +4,9 @@ import { productGraphql } from "@/controller/products";
 
 export const graphql = {
   Query: {
-    // ...graphqlController.Query,
-    // ...userController.Query,
     ...productGraphql.Query,
   },
   Mutation: {
-    // ...graphqlController.Mutation,
-    // ...userController.Mutation,
     ...productGraphql.Mutation,
   },
 };

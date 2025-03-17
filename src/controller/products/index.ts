@@ -1,17 +1,18 @@
 import { db } from "@/db";
 import { products } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
+import { ID, Float } from "@getcronit/pylon";
 
-import { z } from "zod";
+type Product = {
+  id: ID;
+  name: string;
+  description: string;
+  price: Float;
+  isActive: boolean;
+};
 
-export const createProductSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-  price: z.string().refine((val) => !isNaN(Number(val)), {
-    message: "Price must be a number",
-  }),
-  isActive: z.boolean().optional().default(true),
-});
+type CreateProductInput = Omit<Product, "id">;
+type UpdateProductInput = Partial<Omit<Product, "id">> & { id: ID };
 
 export const productGraphql = {
   Query: {
@@ -64,24 +65,32 @@ export const productGraphql = {
     },
   },
   Mutation: {
-    createProduct: async (args: {
-      input: z.infer<typeof createProductSchema>;
-    }) => {
-      const { input } = args;
-
-      const validatedInput = createProductSchema.parse(input);
-
+    createProduct: async (input: CreateProductInput) => {
       const newProduct = await db
         .insert(products)
         .values({
-          name: validatedInput.name,
-          description: validatedInput.description,
-          price: Number(validatedInput.price),
-          isActive: validatedInput.isActive,
+          name: input.name,
+          description: input.description,
+          price: input.price,
+          isActive: input.isActive,
         })
         .returning();
 
       return newProduct[0];
+    },
+    updateProduct: async (input: UpdateProductInput) => {
+      const updatedProduct = await db
+        .update(products)
+        .set({
+          name: input.name,
+          description: input.description,
+          price: input.price,
+          isActive: input.isActive,
+        })
+        .where(eq(products.id, Number(input.id)))
+        .returning();
+
+      return updatedProduct[0];
     },
   },
 };
